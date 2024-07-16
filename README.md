@@ -38,54 +38,6 @@ The client script will emit MQTT messages every second with a random "status" va
 
 The server script will consume messages from RabbitMQ and store them in MongoDB.
 
-```
-import pika
-import pymongo
-from flask import Flask, request, jsonify
-from datetime import datetime
-
-# Connect to MongoDB
-client = pymongo.MongoClient("mongodb://localhost:27017/")
-db = client["status_db"]
-collection = db["status_collection"]
-
-# Connect to RabbitMQ
-connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
-channel = connection.channel()
-channel.queue_declare(queue='status_queue')
-
-app = Flask(__name__)
-
-def callback(ch, method, properties, body):
-    status = int(body.decode())
-    timestamp = datetime.now()
-    collection.insert_one({"status": status, "timestamp": timestamp})
-    print(f"Received status: {status}")
-
-channel.basic_consume(queue='status_queue', on_message_callback=callback, auto_ack=True)
-
-@app.route('/status_count', methods=['GET'])
-def status_count():
-    start_time = request.args.get('start_time')
-    end_time = request.args.get('end_time')
-    
-    start_time = datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S')
-    end_time = datetime.strptime(end_time, '%Y-%m-%d %H:%M:%S')
-
-    pipeline = [
-        {"$match": {"timestamp": {"$gte": start_time, "$lte": end_time}}},
-        {"$group": {"_id": "$status", "count": {"$sum": 1}}}
-    ]
-
-    result = list(collection.aggregate(pipeline))
-    return jsonify(result)
-
-if __name__ == "__main__":
-    print('Starting server...')
-    channel.start_consuming()
-    app.run(port=5000)
-```
-
 ### Running the Scripts
 
 1. Run RabbitMQ:
